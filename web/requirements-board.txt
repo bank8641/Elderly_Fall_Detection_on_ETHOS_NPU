@@ -1,0 +1,17 @@
+# NXP i.MX93 Board Dependencies
+# Lightweight packages for embedded deployment
+
+# TFLite Runtime (smaller than full TensorFlow)
+tflite-runtime>=2.14.0
+
+# Core
+numpy>=1.24.0
+opencv-python-headless>=4.8.0  # Headless version - no GUI deps
+
+# Web Dashboard
+flask>=3.0.0
+flask-socketio>=5.3.0
+python-socketio>=5.10.0
+
+# Note: eventlet may not be available on ARM
+# Flask-SocketIO will fall back to threading mode

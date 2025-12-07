@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fall Detection System | Arm Edge AI Healthcare</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <div class="logo">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                    <circle cx="16" cy="16" r="14" stroke="currentColor" stroke-width="2"/>
+                    <path d="M16 8v8l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span class="logo-text">Fall Detection System</span>
+            </div>
+            <span class="badge badge-info">NXP i.MX93 + Ethos-U65</span>
+        </div>
+        <div class="header-right">
+            <div class="status-indicator" id="connectionStatus">
+                <span class="status-dot"></span>
+                <span class="status-text">Connecting...</span>
+            </div>
+            <div class="npu-badge" id="npuBadge">
+                <span class="npu-icon">NPU</span>
+                <span class="npu-status">--</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Left Panel: Video Feed -->
+        <section class="video-panel">
+            <div class="panel-header">
+                <h2>Live Feed</h2>
+                <div class="panel-actions">
+                    <button class="btn btn-sm" id="fullscreenBtn" title="Fullscreen">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="video-container" id="videoContainer">
+                <img src="/video_feed" alt="Video Feed" id="videoFeed" class="video-feed">
+                <div class="video-overlay" id="fallOverlay">
+                    <div class="alert-banner critical">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2L1 21h22L12 2zm0 3.5L19.5 19h-15L12 5.5zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z"/>
+                        </svg>
+                        <span class="alert-text">FALL DETECTED</span>
+                        <span class="alert-confidence" id="fallConfidence">--</span>
+                    </div>
+                </div>
+                <div class="video-metrics">
+                    <span id="fpsDisplay">-- FPS</span>
+                    <span id="inferenceDisplay">-- ms</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Panel: Status & Alerts -->
+        <aside class="status-panel">
+            <!-- System Status Card -->
+            <div class="card status-card">
+                <div class="card-header">
+                    <h3>System Status</h3>
+                    <span class="system-state" id="systemState">INITIALIZING</span>
+                </div>
+                <div class="card-body">
+                    <div class="metrics-grid">
+                        <div class="metric">
+                            <span class="metric-label">Activity</span>
+                            <span class="metric-value" id="activityState">--</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Body Angle</span>
+                            <span class="metric-value" id="bodyAngle">--</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Keypoints</span>
+                            <span class="metric-value" id="keypointCount">--</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Uptime</span>
+                            <span class="metric-value" id="uptimeDisplay">--</span>
+                        </div>
+                    </div>
+                    <div class="detection-bar">
+                        <span class="detection-label">Person Detected</span>
+                        <span class="detection-indicator" id="personIndicator"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card actions-card">
+                <div class="card-header">
+                    <h3>Quick Actions</h3>
+                </div>
+                <div class="card-body">
+                    <div class="button-group">
+                        <button class="btn btn-primary" id="testAlertBtn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                                <path d="M13.73 21a2 2 0 01-3.46 0"/>
+                            </svg>
+                            Test Alert
+                        </button>
+                        <button class="btn btn-secondary" id="resetBtn">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 12a9 9 0 019-9 9.75 9.75 0 016.74 2.74L21 8"/>
+                                <path d="M21 3v5h-5"/>
+                                <path d="M21 12a9 9 0 01-9 9 9.75 9.75 0 01-6.74-2.74L3 16"/>
+                                <path d="M3 21v-5h5"/>
+                            </svg>
+                            Reset
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alert History -->
+            <div class="card alerts-card">
+                <div class="card-header">
+                    <h3>Alert History</h3>
+                    <span class="alert-count" id="alertCount">0</span>
+                </div>
+                <div class="card-body">
+                    <div class="alert-list" id="alertList">
+                        <div class="alert-empty">No alerts recorded</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Statistics -->
+            <div class="card stats-card">
+                <div class="card-header">
+                    <h3>Statistics</h3>
+                    <button class="btn btn-sm btn-ghost" id="refreshStatsBtn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 12a9 9 0 019-9 9.75 9.75 0 016.74 2.74L21 8"/>
+                            <path d="M21 3v5h-5"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="stats-grid">
+                        <div class="stat">
+                            <span class="stat-value" id="totalFrames">0</span>
+                            <span class="stat-label">Frames Processed</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-value" id="avgFps">0</span>
+                            <span class="stat-label">Avg FPS</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-value" id="avgInference">0</span>
+                            <span class="stat-label">Avg Inference (ms)</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-value" id="totalFalls">0</span>
+                            <span class="stat-label">Falls Detected</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-left">
+            <span>Arm Edge AI Healthcare Initiative</span>
+            <span class="separator">|</span>
+            <span>Powered by Ethos-U65 NPU</span>
+        </div>
+        <div class="footer-right">
+            <a href="/api/status" target="_blank" class="footer-link">API</a>
+            <a href="https://developer.arm.com" target="_blank" class="footer-link">Documentation</a>
+        </div>
+    </footer>
+
+    <!-- Audio Alert (hidden) -->
+    <audio id="alertSound" preload="auto">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2teleR0PVJfZ3KhxFwZLmdnbnHUYDFOU2deYdhkOUJTZ1ZR3Gw9Pk9nUkXgbEE6S2dOQeBwQTZHZ0o94HBFMkNnRjngdEUuP2dCOeB0SS47Zz413HhJKjdnOjHceE0mM2c2LeB8TSYvZzIp4HxRIitnLingfFEeJ2cqJeCAVRojZyYh4IBVGh9nIh3ggFkWG2ceHeCEWRIXZxoZ4IRdDhNnFhXgiFkOD2cSEeCIXQoLZw4N4IxdBgdnCgngkF0CA2cGBeCQYP3/ZwIB4JRg+ftnAf3glGD192b9+eCYZPHzZvn14Jhk7e9m9fHgnGTp62bx7eCcaOXnZu3p4KBo4eNm6eXgpGjd32bl4eCkaJnbZuHd4KhsldNm3dngqGyR02bZ1eCs=" type="audio/wav">
+    </audio>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
